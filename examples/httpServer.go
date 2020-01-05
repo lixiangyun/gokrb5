@@ -3,8 +3,8 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -13,7 +13,6 @@ import (
 	"gopkg.in/jcmturner/gokrb5.v7/keytab"
 	"gopkg.in/jcmturner/gokrb5.v7/service"
 	"gopkg.in/jcmturner/gokrb5.v7/spnego"
-	"gopkg.in/jcmturner/gokrb5.v7/test/testdata"
 )
 
 const (
@@ -25,10 +24,14 @@ func main() {
 	// Create logger
 	l := log.New(os.Stderr, "GOKRB5 Service: ", log.Ldate|log.Ltime|log.Lshortfile)
 
+	keytabBody, err := ioutil.ReadFile("./server.keytab")
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	// Load the service's keytab
-	b, _ := hex.DecodeString(testdata.HTTP_KEYTAB)
 	kt := keytab.New()
-	kt.Unmarshal(b)
+	kt.Unmarshal(keytabBody)
 
 	// Create the application's specific handler
 	th := http.HandlerFunc(testAppHandler)

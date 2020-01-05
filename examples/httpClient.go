@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,57 +13,41 @@ import (
 	"gopkg.in/jcmturner/gokrb5.v7/config"
 	"gopkg.in/jcmturner/gokrb5.v7/keytab"
 	"gopkg.in/jcmturner/gokrb5.v7/spnego"
-	"gopkg.in/jcmturner/gokrb5.v7/test/testdata"
 )
 
 const (
-	port     = ":9080"
-	kRB5CONF = `[libdefaults]
-  default_realm = TEST.GOKRB5
-  dns_lookup_realm = false
-  dns_lookup_kdc = false
-  ticket_lifetime = 24h
-  forwardable = yes
-  default_tkt_enctypes = aes256-cts-hmac-sha1-96
-  default_tgs_enctypes = aes256-cts-hmac-sha1-96
-
-[realms]
- TEST.GOKRB5 = {
-  kdc = 127.0.0.1:88
-  admin_server = 127.0.0.1:749
-  default_domain = test.gokrb5
- }
-
-[domain_realm]
- .test.gokrb5 = TEST.GOKRB5
- test.gokrb5 = TEST.GOKRB5
- `
+	port = ":9080"
 )
 
 func main() {
 	l := log.New(os.Stderr, "GOKRB5 Client: ", log.LstdFlags)
 
-	//defer profile.Start(profile.TraceProfile).Stop()
-	// Load the keytab
-	kb, _ := hex.DecodeString(testdata.TESTUSER2_KEYTAB)
-	kt := keytab.New()
-	err := kt.Unmarshal(kb)
+	keytabBody, err := ioutil.ReadFile("./client.keytab")
 	if err != nil {
 		l.Fatalf("could not load client keytab: %v", err)
 	}
 
-	// Load the client krb5 config
-	conf, err := config.NewConfigFromString(kRB5CONF)
+	//defer profile.Start(profile.TraceProfile).Stop()
+	// Load the keytab
+	kt := keytab.New()
+	err = kt.Unmarshal(keytabBody)
+	if err != nil {
+		l.Fatalf("could not load client keytab: %v", err)
+	}
+
+	kdc, err := ioutil.ReadFile("./krb5.conf")
 	if err != nil {
 		l.Fatalf("could not load krb5.conf: %v", err)
 	}
-	addr := os.Getenv("TEST_KDC_ADDR")
-	if addr != "" {
-		conf.Realms[0].KDC = []string{addr + ":88"}
+
+	// Load the client krb5 config
+	conf, err := config.NewConfigFromString(string(kdc))
+	if err != nil {
+		l.Fatalf("could not load krb5.conf: %v", err)
 	}
 
 	// Create the client with the keytab
-	cl := client.NewClientWithKeytab("testuser2", "TEST.GOKRB5", kt, conf, client.Logger(l), client.DisablePAFXFAST(true))
+	cl := client.NewClientWithKeytab("client/admin", "EXAMPLE.ORG", kt, conf, client.Logger(l), client.DisablePAFXFAST(true))
 
 	// Log in the client
 	err = cl.Login()
@@ -79,7 +62,7 @@ func main() {
 		l.Fatalf("could create request: %v", err)
 	}
 
-	spnegoCl := spnego.NewClient(cl, nil, "HTTP/host.test.gokrb5")
+	spnegoCl := spnego.NewClient(cl, nil, "server/admin")
 
 	// Make the request
 	resp, err := spnegoCl.Do(r)
